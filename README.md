@@ -5,8 +5,8 @@ This tool can be run from the CLI however Chrome has to be installed on the loca
 
 Usage:
 ```
-python aws_login.py -h
-usage: aws_login.py [-h] [-o OUTPUT] -u URL -r ROLE [-U USERNAME] [-p PROFILE] [-l] [-v]
+awsad2cli -h
+usage: awsad2cli [-h] [-o OUTPUT] -u URL -r ROLE [-U USERNAME] [-p PROFILE] [-v]
 
 optional arguments:
   -h, --help   show this help message and exit
@@ -15,6 +15,5 @@ optional arguments:
   -r ROLE      ARN of role to assume
   -U USERNAME  Username (will be cached in $PWD/.username) - delete this if needed
   -p PROFILE   AWS Config profile to create / update, defaults to the username
-  -l           List IAM roles but does not store creds.
   -v           Show browser window and debug info for selenium.
 ```
