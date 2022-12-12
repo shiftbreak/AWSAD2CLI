@@ -1,6 +1,7 @@
 
 import time
 from getpass import getpass
+from json import JSONDecodeError
 from os.path import exists
 from pathlib import Path
 from typing import Optional, Tuple
@@ -17,24 +18,26 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import json
 from datetime import datetime
-
-username_file = str(Path.joinpath(Path.home(), ".username"))
-
+import keyring
 
 def get_username() -> str:
-    if exists(username_file):
-        username = open(username_file, 'r').read()
-    else:
-        username = input("Username: ")
-        f = open(username_file, 'w')
-        f.write(username)
-        f.close()
+    username = keyring.get_password('awsad2cli', 'current_username')
+    if username is not None:
+        return username
+
+    username = input("Username: ")
+    keyring.set_password('awsad2cli', 'current_username', username)
 
     return username
 
 
 def get_creds(username: str, add_mfa: bool = False) -> Tuple[str, str]:
-    password = getpass(f"Password for {username}: ")
+
+    password = keyring.get_password('awsad2cli', username)
+
+    if password is None:
+        password = getpass(f"Password for {username}: ")
+        keyring.set_password('awsad2cli', username, password)
     mfa = None
     if add_mfa:
         mfa = getpass(f"MFA code for {username}: ")
@@ -45,9 +48,16 @@ def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, 
     str, str, str, str]:
     chrome_options = Options()
 
+    if seconds > 3600:
+        print("Cannot assume role greater than 1 hour due to role chaining restriction.")
+        exit(1)
+
     if username is None:
         username = get_username()
         print(f"Logging in with username: {username}")
+    else:
+        print(f"Storing default username {username} in system keyring")
+        keyring.set_password('awsad2cli', 'current_username', username)
 
     if not verbose:
         # Run in headless mode - allows tool to run on the CLI
@@ -110,16 +120,18 @@ def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, 
                 pass
 
     time.sleep(5)
-
-    a.send_keys(f"aws sts assume-role --role-session-name {username} --role-arn {role_arn} --duration-seconds {seconds}")
+    role_cmd = f"aws sts assume-role --role-session-name {username} --role-arn {role_arn} --duration-seconds {seconds}"
+    a.send_keys(role_cmd)
     a.send_keys(Keys.ENTER)
     time.sleep(5)
     text = []
     started = False
     ended = False
+    unformatted_text = ""
     for e in driver.find_elements(by=By.CLASS_NAME, value='ace_line'):
         if e.text is not None:
             t = e.text.strip()
+            unformatted_text += t + "\n"
             if t.startswith("{"):
                 started = True
 
@@ -127,15 +139,21 @@ def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, 
                 ended = True
             if started and not ended:
                 text.append(t)
-
+    if verbose:
+        input("Press Enter to continue...")
     tt = "".join(text).strip()
-    creds = json.loads(tt)
-    c = creds['Credentials']
-    key_id = c['AccessKeyId']
-    key_secret = c['SecretAccessKey']
-    session_token = c['SessionToken']
-    exp = c['Expiration']
-    exp_str = datetime.fromisoformat(exp).astimezone().isoformat()
-    print(f"Creds expire at {exp_str}")
+    try:
+        creds = json.loads(tt)
+        c = creds['Credentials']
+        key_id = c['AccessKeyId']
+        key_secret = c['SecretAccessKey']
+        session_token = c['SessionToken']
+        exp = c['Expiration']
+        exp_str = datetime.fromisoformat(exp).astimezone().isoformat()
+        print(f"Creds expire at {exp_str}")
 
-    return key_id, key_secret, session_token, username
+        return key_id, key_secret, session_token, username
+    except JSONDecodeError:
+        print(f"Error thrown when assumeing role with command: {role_cmd}")
+        print(f"Here is the console output: \n{unformatted_text}")
+        exit(1)

@@ -11,7 +11,7 @@ setup(
 
     name="awsad2cli",  # Required
 
-    version="0.0.2",  # Required
+    version="0.0.5",  # Required
 
     description="A tool to login to AWS console using awsapps.com/console and assume a CLI role with support for MFA",  # Optional
 
@@ -66,6 +66,7 @@ setup(
         "configparser",
         "webdriver_manager",
         "argparse",
+        "keyring"
      ],
 
     # To provide executable scripts, use entry points in preference to the

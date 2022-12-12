@@ -1,4 +1,7 @@
 selenium==4.6.1
-configparser
+configparser~=5.3.0
 webdriver_manager
-argparse
+argparse~=1.4.0
+awsad2cli~=0.0.1
+keyring~=23.11.0
+setuptools~=65.5.1
