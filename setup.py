@@ -11,7 +11,7 @@ setup(
 
     name="awsad2cli",  # Required
 
-    version="0.0.1",  # Required
+    version="0.0.2",  # Required
 
     description="A tool to login to AWS console using awsapps.com/console and assume a CLI role with support for MFA",  # Optional
 

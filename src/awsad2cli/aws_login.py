@@ -41,7 +41,7 @@ def get_creds(username: str, add_mfa: bool = False) -> Tuple[str, str]:
     return password, mfa
 
 
-def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, verbose: bool = False) -> Tuple[
+def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, verbose: bool = False, seconds: int = 3600) -> Tuple[
     str, str, str, str]:
     chrome_options = Options()
 
@@ -111,7 +111,7 @@ def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, 
 
     time.sleep(5)
 
-    a.send_keys(f"aws sts assume-role --role-session-name {username} --role-arn {role_arn}")
+    a.send_keys(f"aws sts assume-role --role-session-name {username} --role-arn {role_arn} --duration-seconds {seconds}")
     a.send_keys(Keys.ENTER)
     time.sleep(5)
     text = []

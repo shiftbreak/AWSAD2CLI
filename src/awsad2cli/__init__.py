@@ -15,6 +15,8 @@ def main():
                         help="Username (will be cached in $PWD/.username) - delete this if needed")
     parser.add_argument('-p', dest='profile', type=str,
                         help="AWS Config profile to create / update, defaults to the username")
+    parser.add_argument('-s', dest='seconds', type=int, default=3600, required=False,
+                        help="Role duration in seconds (limited by the max session duration (not checked): default 3600")
     parser.add_argument('-v', dest='verbose', action="store_true",
                         help="Show browser window and debug info for selenium.")
     args = parser.parse_args()
@@ -22,7 +24,13 @@ def main():
     url = args.url
     role = args.role
 
-    key_id, key_secret, session_token, username = do_aws_login(url, role, username=args.username, verbose=args.verbose)
+    key_id, key_secret, session_token, username = do_aws_login(
+        url,
+        role,
+        username=args.username,
+        verbose=args.verbose,
+        seconds=args.seconds
+    )
     print("Captured temporary credentials, attempting to assume role")
     Config = configparser.ConfigParser()
     creds_file = os.path.expanduser('~/.aws/credentials')
