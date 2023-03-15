@@ -10,7 +10,8 @@ def main():
     parser.add_argument('-o', dest='output', type=str, default="json", help="Output format - json [default], profile")
     parser.add_argument('-u', dest='url', required=True, type=str,
                         help="Login URL ('https://myapp.awsapps.com/console/")
-    parser.add_argument('-r', dest='role', required=True, type=str, help="ARN of role to assume")
+    parser.add_argument('-r', dest='role', required=False, type=str, help="ARN of role to assume")
+    parser.add_argument('--ad', dest='ad', required=False, action="store_true")
     parser.add_argument('-U', dest='username', type=str,
                         help="Username (will be cached in $PWD/.username) - delete this if needed")
     parser.add_argument('-p', dest='profile', type=str,
@@ -24,12 +25,17 @@ def main():
     url = args.url
     role = args.role
 
+    if args.ad:
+        print("MS AAD login selected. Using Assume SAML. This is configured to support MFA push enabled logins only. Look out for a MFA notification on your mobile device.")
+        print("*** note: Role/Principal is automatically extracted from SAMLResponse and specied role will not be used.")
+
     key_id, key_secret, session_token, username = do_aws_login(
         url,
         role,
         username=args.username,
         verbose=args.verbose,
-        seconds=args.seconds
+        seconds=args.seconds,
+        aad=args.ad
     )
     print("Captured temporary credentials, attempting to assume role")
     Config = configparser.ConfigParser()

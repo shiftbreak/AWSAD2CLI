@@ -66,7 +66,8 @@ setup(
         "configparser",
         "webdriver_manager",
         "argparse",
-        "keyring"
+        "keyring",
+        "selenium-wire"
      ],
 
     # To provide executable scripts, use entry points in preference to the
