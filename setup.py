@@ -11,9 +11,9 @@ setup(
 
     name="awsad2cli",  # Required
 
-    version="0.0.5",  # Required
+    version="0.0.6",  # Required
 
-    description="A tool to login to AWS console using awsapps.com/console and assume a CLI role with support for MFA",  # Optional
+    description="A tool to login to AWS via MS AAD SAML or AWS console using awsapps.com/console and assume a CLI role with support for MFA",  # Optional
 
     # This should be a valid link to your project's main homepage.
     #
