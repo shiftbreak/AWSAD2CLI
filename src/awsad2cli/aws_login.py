@@ -92,7 +92,7 @@ def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, 
         number = driver.find_element(by=By.ID, value='idRichContext_DisplaySign').text
 
         print(f"Approval number: {number}")
-        WebDriverWait(driver, 20).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+        WebDriverWait(driver, 120).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
         while True:
             for request in driver.requests:
                 if request.response and request.url == 'https://signin.aws.amazon.com/saml':
