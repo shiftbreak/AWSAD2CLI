@@ -38,17 +38,19 @@ python setup.py install
 ## Usage
 ```
 $ awsad2cli --help
-usage: awsad2cli [-h] [-o OUTPUT] -u URL [-r ROLE] [--ad] [-U USERNAME] [-p PROFILE] [-s SECONDS] [-v]
+usage: awsad2cli [-h] [-o OUTPUT] -u URL [-r ROLE] [--ad] [-U USERNAME] [-p PROFILE] [-s SECONDS] [-v] [--cache-location CACHE_LOC] [--no-cache]
 
 optional arguments:
-  -h, --help   show this help message and exit
-  -o OUTPUT    Output format - json [default], profile
-  -u URL       Login URL ('https://myapp.awsapps.com/console/
-  -r ROLE      ARN of role to assume
+  -h, --help            show this help message and exit
+  -o OUTPUT             Output format - json [default], profile
+  -u URL                Login URL ('https://myapp.awsapps.com/console/
+  -r ROLE               ARN of role to assume
   --ad
-  -U USERNAME  Username (will be cached in $PWD/.username) - delete this if needed
-  -p PROFILE   AWS Config profile to create / update, defaults to the username
-  -s SECONDS   Role duration in seconds (limited by the max session duration (not checked): default 3600
-  -v           Show browser window and debug info for selenium.
+  -U USERNAME           Username (will be cached in $PWD/.username) - delete this if needed
+  -p PROFILE            AWS Config profile to create / update, defaults to the username
+  -s SECONDS            Role duration in seconds (limited by the max session duration (not checked): default 3600
+  -v                    Show browser window and debug info for selenium.
+  --cache-location CACHE_LOC
+                        Location of cached chrome data (NOTE: will contain AAD cookies. Disabling this option will require re-authentication each usage)
 
 ```
