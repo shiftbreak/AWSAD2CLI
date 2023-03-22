@@ -52,5 +52,6 @@ optional arguments:
   -v                    Show browser window and debug info for selenium.
   --cache-location CACHE_LOC
                         Location of cached chrome data (NOTE: will contain AAD cookies. Disabling this option will require re-authentication each usage)
+  --no-cache            Disable Caching of chrome data..
 
 ```
