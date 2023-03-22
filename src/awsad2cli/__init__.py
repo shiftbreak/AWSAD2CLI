@@ -37,7 +37,7 @@ def main():
         seconds=args.seconds,
         aad=args.ad
     )
-    print("Captured temporary credentials, attempting to assume role")
+    print(f"Captured temporary credentials {key_id}")
     Config = configparser.ConfigParser()
     creds_file = os.path.expanduser('~/.aws/credentials')
     Config.read(creds_file)

@@ -3,26 +3,25 @@ import time
 import urllib
 from getpass import getpass
 from json import JSONDecodeError
-from os.path import exists
-from pathlib import Path
+from threading import Thread
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
-
 import boto3
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver import ActionChains, Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.webdriver import WebDriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-# from selenium import webdriver
 from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
 import json
 from datetime import datetime
 import keyring
+
 
 def get_username() -> str:
     username = keyring.get_password('awsad2cli', 'current_username')
@@ -48,8 +47,62 @@ def get_creds(username: str, add_mfa: bool = False) -> Tuple[str, str]:
     return password, mfa
 
 
-def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, verbose: bool = False, seconds: int = 3600, aad: bool = False) -> Tuple[
-    str, str, str, str]:
+class SAMLWaiter(Thread):
+
+    def __init__(self, driver: webdriver, seconds):
+        Thread.__init__(self)
+        self.access_key = None
+        self.secret_key = None
+        self.session_token = None
+        self.driver: webdriver = driver
+        self.seconds = seconds
+
+    def run(self):
+        while True:
+            for request in self.driver.requests:
+                if request.response and request.url == 'https://signin.aws.amazon.com/saml':
+                    saml = request.body.decode().split("SAMLResponse=")[1]
+                    saml_decoded = urllib.parse.unquote(saml)
+                    saml_xml = base64.b64decode(saml_decoded)
+                    sts = boto3.client("sts")
+                    doc = ET.fromstring(saml_xml)
+                    e = doc.find('{urn:oasis:names:tc:SAML:2.0:assertion}Assertion') \
+                        .find('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeStatement')
+                    for node in e:
+                        if node.get('Name') == "https://aws.amazon.com/SAML/Attributes/Role":
+                            for av in node:
+                                if av.text is not None:
+                                    role = av.text.split(',')[0]
+                                    principal = av.text.split(',')[1]
+                                    response = sts.assume_role_with_saml(
+                                        RoleArn=role,
+                                        PrincipalArn=principal,
+                                        SAMLAssertion=saml_decoded,
+                                        DurationSeconds=self.seconds
+                                    )
+                                    creds = response['Credentials']
+                                    self.access_key = creds['AccessKeyId']
+                                    self.secret_key = creds['SecretAccessKey']
+                                    self.session_token = creds['SessionToken']
+                                    print("Authentication credentials have been extracted - quiting chrome:)")
+                                    self.driver.quit()
+                                    return
+            time.sleep(0.5)
+
+
+def do_aws_login(
+        final_url: str,
+        role_arn: str,
+        username: Optional[str] = None,
+        verbose: bool = False,
+        seconds: int = 3600,
+        aad: bool = False
+) -> Tuple[
+    str,
+    str,
+    str,
+    str
+]:
     chrome_options = Options()
 
     if seconds > 3600:
@@ -74,7 +127,9 @@ def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, 
                                 "like Gecko) Chrome/107.0.5304.107 Safari/537.36")
 
     # noinspection PyArgumentList
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    driver: WebDriver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    t = SAMLWaiter(driver, seconds)
+    t.start()
 
     driver.get(final_url)
 
@@ -92,32 +147,13 @@ def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, 
         number = driver.find_element(by=By.ID, value='idRichContext_DisplaySign').text
 
         print(f"Approval number: {number}")
-        WebDriverWait(driver, 120).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
-        while True:
-            for request in driver.requests:
-                if request.response and request.url == 'https://signin.aws.amazon.com/saml':
-                    saml = request.body.decode().split("SAMLResponse=")[1]
-                    saml_decoded = urllib.parse.unquote(saml)
-                    saml_xml = base64.b64decode(saml_decoded)
-                    sts = boto3.client("sts")
-                    doc = ET.fromstring(saml_xml)
-                    e = doc.find('{urn:oasis:names:tc:SAML:2.0:assertion}Assertion')\
-                        .find('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeStatement')
-                    for node in e:
-                        if node.get('Name') == "https://aws.amazon.com/SAML/Attributes/Role":
-                            for av in node:
-                                if av.text is not None:
-                                    role = av.text.split(',')[0]
-                                    principal = av.text.split(',')[1]
-                                    response = sts.assume_role_with_saml(
-                                        RoleArn=role,
-                                        PrincipalArn=principal,
-                                        SAMLAssertion=saml_decoded,
-                                        DurationSeconds=seconds
-                                        )
-                                    creds = response['Credentials']
-                                    return creds['AccessKeyId'], creds['SecretAccessKey'], creds['SessionToken'], username
-            time.sleep(0.5)
+
+        element = WebDriverWait(driver, 120).until(EC.element_to_be_clickable(NEXTBUTTON))
+        element.send_keys('\n')
+
+        # Block for SAML Waiter join
+        t.join()
+        return t.access_key, t.secret_key, t.session_token, username
 
     else:
         USERNAME_FIELD = (By.ID, "wdc_username")
@@ -165,7 +201,8 @@ def do_aws_login(final_url: str, role_arn: str, username: Optional[str] = None, 
                     pass
 
         time.sleep(5)
-        role_cmd = f"aws sts assume-role --role-session-name {username} --role-arn {role_arn} --duration-seconds {seconds}"
+        role_cmd = f"aws sts assume-role --role-session-name {username} --role-arn {role_arn}" \
+                   f" --duration-seconds {seconds}"
         a.send_keys(role_cmd)
         a.send_keys(Keys.ENTER)
         time.sleep(5)
