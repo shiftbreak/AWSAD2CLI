@@ -20,6 +20,10 @@ def main():
                         help="Role duration in seconds (limited by the max session duration (not checked): default 3600")
     parser.add_argument('-v', dest='verbose', action="store_true",
                         help="Show browser window and debug info for selenium.")
+    parser.add_argument('--cache-location', dest='cache_loc', type=str, default=f"{os.path.expanduser('~')}/.chrome-data",
+                        help="Location of cached chrome data (NOTE: will contain AAD cookies. Disabling this option will require re-authentication each usage)")
+    parser.add_argument('--no-cache', dest='cache', action="store_false",
+                        help="Disable Caching of chrome data..")
     args = parser.parse_args()
 
     url = args.url
@@ -29,13 +33,16 @@ def main():
         print("MS AAD login selected. Using Assume SAML. This is configured to support MFA push enabled logins only. Look out for a MFA notification on your mobile device.")
         print("*** note: Role/Principal is automatically extracted from SAMLResponse and specied role will not be used.")
 
+    print()
     key_id, key_secret, session_token, username = do_aws_login(
         url,
         role,
         username=args.username,
         verbose=args.verbose,
         seconds=args.seconds,
-        aad=args.ad
+        aad=args.ad,
+        cache=args.cache,
+        cache_loc=args.cache_loc
     )
     print(f"Captured temporary credentials {key_id}")
     Config = configparser.ConfigParser()

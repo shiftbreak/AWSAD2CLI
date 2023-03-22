@@ -8,7 +8,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 setup(
 
     name="awsad2cli",
-    version="0.0.7",
+    version="0.0.8",
     description="A tool to login to AWS via MS AAD SAML or AWS console using awsapps.com/console "
                 "and assume a CLI role with support for MFA",
     url="https://github.com/shiftbreak/AWSAD2CLI",

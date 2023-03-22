@@ -3,6 +3,7 @@ import time
 import urllib
 from getpass import getpass
 from json import JSONDecodeError
+from os import path
 from threading import Thread
 from typing import Optional, Tuple
 from urllib.parse import urlparse
@@ -96,7 +97,9 @@ def do_aws_login(
         username: Optional[str] = None,
         verbose: bool = False,
         seconds: int = 3600,
-        aad: bool = False
+        aad: bool = False,
+        cache: bool = True,
+        cache_loc: str = f"{path.expanduser('~')}/.chrome-data"
 ) -> Tuple[
     str,
     str,
@@ -116,9 +119,11 @@ def do_aws_login(
         print(f"Storing default username {username} in system keyring")
         keyring.set_password('awsad2cli', 'current_username', username)
 
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-gpu")
     if not verbose:
         # Run in headless mode - allows tool to run on the CLI
-        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless=new")
 
         # Disable verbose debug logging
         chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
@@ -126,30 +131,44 @@ def do_aws_login(
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, "
                                 "like Gecko) Chrome/107.0.5304.107 Safari/537.36")
 
+    if cache is True:
+        chrome_options.add_argument(f"--user-data-dir={cache_loc}")
+
     # noinspection PyArgumentList
     driver: WebDriver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
     t = SAMLWaiter(driver, seconds)
     t.start()
-
+    print(f" --- Navigating to specified URL: {final_url}")
     driver.get(final_url)
-
+    print(" --- Searching page for required elements (if existent)")
     if aad:
         USERNAME_FIELD = (By.NAME, "loginfmt")
         PASSWORDFIELD = (By.NAME, "passwd")
         NEXTBUTTON = (By.ID, "idSIButton9")
-        WebDriverWait(driver, 5).until(EC.element_to_be_clickable(USERNAME_FIELD)).send_keys(username)
-        WebDriverWait(driver, 5).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+        ACCOUNTBUTTON = (By.XPATH, f"//div[contains(text(),'{username}')]")
 
-        password, _ = get_creds(username, add_mfa=False)
-        WebDriverWait(driver, 5).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(password)
-        WebDriverWait(driver, 5).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
-        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.ID, "idRichContext_DisplaySign")))
-        number = driver.find_element(by=By.ID, value='idRichContext_DisplaySign').text
+        try:
+            try:
+                ele = WebDriverWait(driver, 10).until(EC.element_to_be_clickable(ACCOUNTBUTTON))
+                print(' --- Identified previously cached login session with account selection / clicking correct account')
+                ele.click()
+            except TimeoutException:
+                WebDriverWait(driver, 5).until(EC.element_to_be_clickable(USERNAME_FIELD)).send_keys(username)
+                WebDriverWait(driver, 5).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
 
-        print(f"Approval number: {number}")
+            password, _ = get_creds(username, add_mfa=False)
+            WebDriverWait(driver, 5).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(password)
+            WebDriverWait(driver, 5).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+            WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.ID, "idRichContext_DisplaySign")))
+            number = driver.find_element(by=By.ID, value='idRichContext_DisplaySign').text
 
-        element = WebDriverWait(driver, 120).until(EC.element_to_be_clickable(NEXTBUTTON))
-        element.send_keys('\n')
+            print(f" !!!!!! --- Approval number: {number}")
+
+            element = WebDriverWait(driver, 120).until(EC.element_to_be_clickable(NEXTBUTTON))
+
+            element.send_keys('\n')
+        except Exception:
+            pass
 
         # Block for SAML Waiter join
         t.join()
@@ -174,11 +193,11 @@ def do_aws_login(
         if mfa is not None:
             WebDriverWait(driver, 5).until(EC.presence_of_element_located(MFANUM)).send_keys(mfa)
         WebDriverWait(driver, 5).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
-        print("Attempting login with supplied credentials")
+        print(" --- Attempting login with supplied credentials")
         try:
             WebDriverWait(driver, 20).until(EC.url_contains("/console/home"))
         except TimeoutException:
-            print("Login mail have failed - check your credentails or run in verbose mode")
+            print(" !!!!! --- Login mail have failed - check your credentails or run in verbose mode")
             exit(1)
         print("Opening cloud shell")
         domain = urlparse(driver.current_url).netloc
